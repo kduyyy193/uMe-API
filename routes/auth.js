@@ -63,14 +63,16 @@ router.post("/login", async (req, res) => {
       expiresIn: "30d",
     });
     res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        businessName:
-          user.role === ROLES.MERCHANT ? user.businessName : undefined,
-        location: user.role === ROLES.MERCHANT ? user.location : undefined,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          businessName:
+            user.role === ROLES.MERCHANT ? user.businessName : undefined,
+          location: user.role === ROLES.MERCHANT ? user.location : undefined,
+        },
       },
     });
   } catch (error) {

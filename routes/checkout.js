@@ -1,48 +1,63 @@
 const express = require("express");
 const Order = require("../models/Order");
 const PAYMENT_METHOD = require("../constants/paymentMethod");
+
+const handleCreditCardPayment = require("../paymentHandlers/creditCard");
+const handleCashPayment = require("../paymentHandlers/cash");
+
 const router = express.Router();
 
 router.post("/:orderId", async (req, res) => {
-  const { paymentMethod } = req.body;
+  const { paymentMethod, amount, paymentToken } = req.body;
 
-  // Kiểm tra phương thức thanh toán
   if (
     !paymentMethod ||
     !Object.values(PAYMENT_METHOD).includes(paymentMethod)
   ) {
     return res.status(400).json({
-      msg: "Payment method is required and must be either CASH or CREDIT_CARD.",
+      msg: "Payment method is required and must be valid.",
     });
   }
 
   try {
-    // Tìm đơn hàng dựa trên orderId
     const order = await Order.findById(req.params.orderId);
 
     if (!order) {
       return res.status(404).json({ msg: "Order not found." });
     }
 
-    // Kiểm tra xem đơn hàng đã checkout chưa
     if (order.isCheckout) {
       return res
         .status(400)
         .json({ msg: "Order has already been checked out." });
     }
 
-    // Cập nhật đơn hàng với trạng thái checkout
-    order.isCheckout = true;
-    order.paymentMethod = paymentMethod; // Thêm phương thức thanh toán vào đơn hàng
+    let result;
+    switch (paymentMethod) {
+      case PAYMENT_METHOD.CREDIT_CARD:
+        result = await handleCreditCardPayment(order, amount, paymentToken);
+        break;
+      case PAYMENT_METHOD.CASH:
+        result = await handleCashPayment(order);
+        break;
 
-    await order.save(); // Lưu lại thay đổi
+      default:
+        return res.status(400).json({ msg: "Unsupported payment method." });
+    }
 
-    res.status(200).json({
-      msg: "Checkout successful.",
-      order,
-    });
+    if (result.success) {
+      res.status(200).json({
+        msg: result.msg,
+        order: result.order,
+      });
+    } else {
+      res.status(400).json({
+        msg: result.msg,
+        error: result.error || null,
+      });
+    }
   } catch (error) {
-    res.status(500).json({ msg: "Server error", error });
+    return res.status(500).json({ msg: "Server error", error });
   }
 });
 

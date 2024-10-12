@@ -165,7 +165,9 @@ router.get("/table/:tableId", async (req, res) => {
       return res.status(404).json({ msg: "No orders found for this table." });
     }
 
-    res.json(orders);
+    res.json({
+      data: orders,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
@@ -183,7 +185,9 @@ router.get("/takeaway/:uniqueId", async (req, res) => {
       return res.status(404).json({ msg: "Order not found" });
     }
 
-    res.json(order);
+    res.json({
+      data: order,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }

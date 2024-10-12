@@ -27,8 +27,21 @@ router.post("/", async (req, res) => {
 // Lấy tất cả món ăn
 router.get("/", async (req, res) => {
   try {
-    const menuItems = await Menu.find();
-    res.json(menuItems);
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const page = parseInt(req.query.page) || 1;
+
+    const totalItems = await Menu.countDocuments();
+
+    const menuItems = await Menu.find()
+      .skip((page - 1) * pageSize)
+      .limit(pageSize);
+
+    res.json({
+      data: menuItems,
+      pageSize,
+      page,
+      totalCount: totalItems,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error" });
   }
