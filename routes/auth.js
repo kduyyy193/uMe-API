@@ -6,7 +6,68 @@ const ROLES = require("../constants/roles");
 const isMerchant = require("../middlewares/roleMiddleware");
 const router = express.Router();
 
-// Đăng ký
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     description: Create a new user with a username, password, and role. For users with the Merchant role, additional business details are required.
+ *     tags:
+ *       - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Username for the new user
+ *                 example: admin
+ *               password:
+ *                 type: string
+ *                 description: Password for the new user
+ *                 example: password123
+ *               role:
+ *                 type: string
+ *                 description: Role of the user (e.g., Admin, Merchant, etc.)
+ *                 example: Merchant
+ *               businessName:
+ *                 type: string
+ *                 description: Business name (required if role is Merchant)
+ *                 example: John's Bakery
+ *               location:
+ *                 type: string
+ *                 description: Location of the business (required if role is Merchant)
+ *                 example: 123 Main St, Springfield
+ *     responses:
+ *       201:
+ *         description: User successfully created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msg:
+ *                   type: string
+ *                   example: User created
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     username:
+ *                       type: string
+ *                       example: johndoe
+ *                     role:
+ *                       type: string
+ *                       example: Merchant
+ *                     businessName:
+ *                       type: string
+ *                       example: John's Bakery
+ *                     location:
+ *                       type: string
+ *                       example: 123 Main St, Springfield
+ */
 router.post("/register", async (req, res) => {
   const { username, password, role, businessName, location } = req.body;
 
@@ -49,7 +110,65 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Đăng nhập
+/**
+ * @swagger
+ * /api/auth/login:
+ *    post:
+ *      summary: Login to system
+ *      description: Use username and password to log in
+ *      tags:
+ *        - Auth
+ *      requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Username for the new user
+ *                 example: admin
+ *               password:
+ *                 type: string
+ *                 description: Password for the new user
+ *                 example: password123
+ *      responses:
+ *        200:
+ *          description: Successful login
+ *          content:
+ *            application/json:
+ *              schema:
+ *                type: object
+ *                properties:
+ *                  token:
+ *                    type: string
+ *                    description: JWT token for authenticated user
+ *                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                  user:
+ *                    type: object
+ *                    properties:
+ *                      id:
+ *                        type: string
+ *                        description: ID of the user
+ *                        example: 12345
+ *                      username:
+ *                        type: string
+ *                        description: Username of the logged-in user
+ *                        example: admin
+ *                      role:
+ *                        type: string
+ *                        description: Role of the user (e.g., admin, merchant)
+ *                        example: admin
+ *                      businessName:
+ *                        type: string
+ *                        description: Name of the business (if role is MERCHANT)
+ *                        example: "Tech Store"
+ *                      location:
+ *                        type: string
+ *                        description: Location of the business (if role is MERCHANT)
+ *                        example: "New York"
+ */
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -93,11 +212,27 @@ router.delete("/delete/:id", isMerchant, async (req, res) => {
   }
 });
 
-// Lấy danh sách người dùng (không hiển thị user đã bị xoá)
+/**
+ * @swagger
+ * /api/auth/users:
+ *    get:
+ *      summary: Get a list of Users
+ *      tags:
+ *        - User
+ *      responses:
+ *        200:
+ *           description: A list of users
+ *           content:
+ *              application/json:
+ *                type: array
+ */
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find({ isDeleted: false }); // Không lấy user bị xoá
-    res.json(users);
+    const users = await User.find({ isDeleted: false });
+    res.json(users.map(user => {
+      const { password, __v, ...userWithoutSensitiveData } = user.toObject();
+      return userWithoutSensitiveData;
+    }));
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }

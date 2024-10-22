@@ -10,6 +10,7 @@ const reportRoutes = require("./routes/report");
 require("dotenv").config();
 
 const createDefaultTable = require("./heplers/createDefaultTable");
+const { swaggerUi, specs } = require("./docs/swagger");
 
 const app = express();
 app.use(express.json());
@@ -40,11 +41,13 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/checkout", checkoutRoutes);
 app.use("/api/report", reportRoutes);
 
+app.use('/swagger/ui/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
+
 app.use("/", (_, res) => {
   res.send("Hello World!");
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
