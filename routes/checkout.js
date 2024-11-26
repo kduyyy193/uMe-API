@@ -2,8 +2,8 @@ const express = require("express");
 const Order = require("../models/Order");
 const PAYMENT_METHOD = require("../constants/paymentMethod");
 
-const handleCreditCardPayment = require("../paymentHandlers/creditCard");
-const handleCashPayment = require("../paymentHandlers/cash");
+// const handleCreditCardPayment = require("../paymentHandlers/handleCreditCardPayment");
+const handleCashPayment = require("../paymentHandlers/handleCashPayment");
 
 const router = express.Router();
 
@@ -34,9 +34,9 @@ router.post("/:orderId", async (req, res) => {
 
     let result;
     switch (paymentMethod) {
-      case PAYMENT_METHOD.CREDIT_CARD:
-        result = await handleCreditCardPayment(order, amount, paymentToken);
-        break;
+      // case PAYMENT_METHOD.CREDIT_CARD:
+      //   result = await handleCreditCardPayment(order, amount, paymentToken);
+      //   break;
       case PAYMENT_METHOD.CASH:
         result = await handleCashPayment(order);
         break;
