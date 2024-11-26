@@ -28,7 +28,9 @@ router.post("/", isMerchant, async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const tables = await Table.find();
-    res.json(tables);
+    res.json({
+      data: tables,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error" });
   }

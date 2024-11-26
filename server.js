@@ -3,7 +3,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const tablesRoutes = require("./routes/tables");
 const authRoutes = require("./routes/auth");
-const menusRoutes = require("./routes/menus");
+const categoryRoutes = require("./routes/category");
+const menuRoutes = require("./routes/menu");
 const orderRoutes = require("./routes/orders");
 const checkoutRoutes = require("./routes/checkout");
 const reportRoutes = require("./routes/report");
@@ -35,7 +36,8 @@ mongoose
 
 app.use("/api/tables", tablesRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/menus", menusRoutes);
+app.use("/api/category", categoryRoutes);
+app.use("/api/menu", menuRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/checkout", checkoutRoutes);
 app.use("/api/report", reportRoutes);

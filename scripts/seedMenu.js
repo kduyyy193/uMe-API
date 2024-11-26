@@ -1,82 +1,101 @@
 const mongoose = require("mongoose");
+const Category = require("../models/Category");
 const Menu = require("../models/Menu");
-require('dotenv').config();
+require("dotenv").config();
 
-const defaultMenuItems = [
-  {
-    name: "Phở Bò",
-    quantity: 100,
-    price: 50000,
-    description: "Món ăn truyền thống của Việt Nam",
-  },
-  {
-    name: "Bánh Mì",
-    quantity: 200,
-    price: 20000,
-    description: "Bánh mì kẹp thịt",
-  },
-  {
-    name: "Gà Rán",
-    quantity: 150,
-    price: 70000,
-    description: "Gà rán giòn rụm",
-  },
-  { name: "Mì Ý", quantity: 80, price: 60000, description: "Mì Ý sốt cà chua" },
-  {
-    name: "Cơm Tấm",
-    quantity: 120,
-    price: 45000,
-    description: "Cơm tấm với sườn nướng",
-  },
-  {
-    name: "Nem Rán",
-    quantity: 90,
-    price: 30000,
-    description: "Nem rán giòn ngon",
-  },
-  {
-    name: "Sushi",
-    quantity: 70,
-    price: 80000,
-    description: "Món sushi Nhật Bản",
-  },
-  {
-    name: "Bò Lúc Lắc",
-    quantity: 60,
-    price: 75000,
-    description: "Bò lúc lắc thơm ngon",
-  },
-  {
-    name: "Salad",
-    quantity: 100,
-    price: 25000,
-    description: "Salad rau củ tươi ngon",
-  },
-  {
-    name: "Trà Sữa",
-    quantity: 200,
-    price: 30000,
-    description: "Trà sữa truyền thống",
-  },
-];
-
-const seedMenu = async () => {
+const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-
-    await Menu.deleteMany({});
-
-    await Menu.insertMany(defaultMenuItems);
-    console.log("Menu đã được khởi tạo với 10 món ăn mặc định!");
-
-    mongoose.connection.close();
-  } catch (error) {
-    console.error("Lỗi khi khởi tạo menu:", error);
-    mongoose.connection.close();
+    console.log("Connected to MongoDB!");
+  } catch (err) {
+    console.error("Error connecting to MongoDB:", err);
+    process.exit(1);  // Dừng script nếu không thể kết nối tới MongoDB
   }
 };
 
-seedMenu();
+const seedCategoriesAndMenus = async () => {
+  try {
+    // Xóa tất cả dữ liệu trong Category và Menu
+    await Category.deleteMany();
+    await Menu.deleteMany();
+
+    // Tạo các Category
+    const categories = await Category.create([
+      { name: 'Lẩu', description: 'Món ăn lẩu phong phú và đa dạng' },
+      { name: 'Nướng', description: 'Các món nướng thơm ngon, hấp dẫn' },
+      { name: 'Ốc', description: 'Món ốc tươi ngon, đậm đà hương vị' },
+      { name: 'Thức uống', description: 'Nước giải khát và các loại đồ uống hấp dẫn' },
+    ]);
+
+    // Tạo món ăn cho từng Category
+    await createMenuForCategory(categories[0]._id, 'Lẩu');  // Lẩu
+    await createMenuForCategory(categories[1]._id, 'Nướng'); // Nướng
+    await createMenuForCategory(categories[2]._id, 'Ốc');    // Ốc
+    await createMenuForCategory(categories[3]._id, 'Thức uống'); // Thức uống
+
+    console.log("Successfully seeded categories and menus!");
+  } catch (err) {
+    console.error("Error seeding categories and menus:", err);
+  }
+};
+
+const createMenuForCategory = async (categoryId, categoryName) => {
+  const menuItems = getMenuItemsForCategory(categoryName);
+  
+  const menu = menuItems.map(item => ({
+    ...item,
+    category: categoryId,
+  }));
+
+  await Menu.create(menu);
+  console.log(`Menu items for category "${categoryName}" created.`);
+};
+
+// Hàm trả về danh sách món ăn cho từng category
+const getMenuItemsForCategory = (categoryName) => {
+  switch (categoryName) {
+    case 'Lẩu':
+      return [
+        { name: 'Lẩu Thái', price: 150000, description: 'Lẩu Thái chua cay đậm đà', quantity: 10 },
+        { name: 'Lẩu Hải Sản', price: 180000, description: 'Lẩu hải sản tươi ngon, ngọt nước', quantity: 12 },
+        { name: 'Lẩu Gà Đông Tảo', price: 220000, description: 'Lẩu gà Đông Tảo với nước dùng thơm ngon', quantity: 8 },
+      ];
+    case 'Nướng':
+      return [
+        { name: 'Sườn Nướng Mắm', price: 120000, description: 'Sườn nướng mắm đậm đà hương vị', quantity: 15 },
+        { name: 'Ba Rọi Nướng', price: 130000, description: 'Ba rọi nướng thơm lừng, ngọt thịt', quantity: 20 },
+        { name: 'Lươn Nướng Mỡ Hành', price: 150000, description: 'Lươn nướng mỡ hành béo ngậy, đậm đà', quantity: 10 },
+      ];
+    case 'Ốc':
+      return [
+        { name: 'Ốc Hương Nướng Mỡ Hành', price: 90000, description: 'Ốc hương nướng mỡ hành thơm ngon', quantity: 25 },
+        { name: 'Ốc Len Xào Dừa', price: 110000, description: 'Ốc len xào dừa béo ngậy, thơm lừng', quantity: 20 },
+        { name: 'Ốc Nhồi Thịt', price: 100000, description: 'Ốc nhồi thịt, sốt bơ béo ngậy', quantity: 18 },
+      ];
+    case 'Thức uống':
+      return [
+        { name: 'Trà Sữa', price: 35000, description: 'Trà sữa ngọt ngào, thơm ngon', quantity: 50 },
+        { name: 'Sinh Tố', price: 25000, description: 'Sinh tố hoa quả tươi mát, bổ dưỡng', quantity: 40 },
+        { name: 'Nước Mía', price: 15000, description: 'Nước mía tươi ngọt, giải khát tuyệt vời', quantity: 30 },
+      ];
+    default:
+      return [];
+  }
+};
+
+const disconnectDB = () => {
+  mongoose.disconnect()
+    .then(() => console.log("Disconnected from MongoDB"))
+    .catch(err => console.error("Error disconnecting from MongoDB:", err));
+};
+
+const seedDatabase = async () => {
+  await connectDB();
+  await seedCategoriesAndMenus();
+  disconnectDB();
+};
+
+seedDatabase();
