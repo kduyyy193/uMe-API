@@ -7,7 +7,7 @@ const UserSchema = new mongoose.Schema({
     enum: ["Merchant", "Waiter", "Kitten", "Customer"],
     required: true,
   },
-  businessName: { type: String }
+  businessName: { type: String },
   location: { type: String },
   isDeleted: { type: Boolean, default: false },
 });
