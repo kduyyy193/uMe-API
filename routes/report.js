@@ -21,7 +21,6 @@ router.get("/", isMerchant, async (req, res) => {
       }
     }
 
-    // Tính tổng doanh thu và doanh thu theo món
     const report = await Order.aggregate([
       { $match: match },
       {
@@ -29,7 +28,7 @@ router.get("/", isMerchant, async (req, res) => {
       },
       {
         $group: {
-          _id: "$items.menuItemId", // Nhóm theo ID món ăn
+          _id: "$items.menuItemId",
           totalRevenue: { $sum: "$totalAmount" },
           totalQuantity: { $sum: "$items.quantity" },
           menuItem: { $first: "$items" },
@@ -61,7 +60,6 @@ router.get("/", isMerchant, async (req, res) => {
       return res.status(404).json({ msg: "No sales data found." });
     }
 
-    // Tính tổng doanh thu
     const totalRevenue = report.reduce(
       (acc, item) => acc + item.totalRevenue,
       0

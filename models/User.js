@@ -7,8 +7,8 @@ const UserSchema = new mongoose.Schema({
     enum: ["Merchant", "Waiter", "Kitten", "Customer"],
     required: true,
   },
-  businessName: { type: String }, // Chỉ dành cho Merchant
-  location: { type: String }, // Chỉ dành cho Merchant
+  businessName: { type: String }
+  location: { type: String },
   isDeleted: { type: Boolean, default: false },
 });
 

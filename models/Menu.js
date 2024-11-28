@@ -1,4 +1,3 @@
-// models/Menu.js
 const mongoose = require("mongoose");
 
 const MenuSchema = new mongoose.Schema({
@@ -23,7 +22,7 @@ const MenuSchema = new mongoose.Schema({
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Category", // Liên kết đến Category
+    ref: "Category",
     required: true,
   },
   createdAt: {

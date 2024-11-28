@@ -1,16 +1,13 @@
-// routes/category.js
 const express = require("express");
 const Category = require("../models/Category");
-const authMiddleware = require("../middlewares/authMiddleware"); // Nếu bạn cần xác thực
+const authMiddleware = require("../middlewares/authMiddleware");
 const router = express.Router();
 
 router.use(authMiddleware);
 
-// Tạo Category mới
 router.post("/", async (req, res) => {
   const { name, description } = req.body;
 
-  // Kiểm tra dữ liệu đầu vào
   if (!name) {
     return res.status(400).json({ msg: "Category name is required." });
   }
@@ -18,13 +15,15 @@ router.post("/", async (req, res) => {
   try {
     const category = new Category({ name, description });
     await category.save();
-    res.status(201).json({ msg: "Category created", category });
+    res.status(201).json({
+      data: category,
+      msg: "Category created",
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
 });
 
-// Lấy tất cả Category
 router.get("/", async (req, res) => {
   try {
     const categories = await Category.find();
@@ -34,7 +33,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Lấy Category theo ID
 router.get("/:id", async (req, res) => {
   try {
     const category = await Category.findById(req.params.id);
@@ -47,7 +45,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Cập nhật Category
 router.put("/:id", async (req, res) => {
   const { name, description } = req.body;
 
@@ -60,20 +57,24 @@ router.put("/:id", async (req, res) => {
     if (!category) {
       return res.status(404).json({ msg: "Category not found" });
     }
-    res.json({ msg: "Category updated", category });
+    res.json({ data: category, msg: "Category updated" });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
 });
 
-// Xóa Category
 router.delete("/:id", async (req, res) => {
   try {
     const category = await Category.findByIdAndDelete(req.params.id);
     if (!category) {
       return res.status(404).json({ msg: "Category not found" });
     }
-    res.json({ msg: "Category deleted" });
+    res.json({
+      data: {
+        succcess: true,
+      },
+      msg: "Category deleted",
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }

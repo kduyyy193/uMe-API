@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const TableSchema = new mongoose.Schema({
-  tableNumber: { type: Number, required: true, unique: true },
+  tableNumber: { type: String, required: true, unique: true },
   seats: { type: Number, required: true },
   status: {
     type: String,

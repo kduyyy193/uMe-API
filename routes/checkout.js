@@ -2,13 +2,10 @@ const express = require("express");
 const Order = require("../models/Order");
 const PAYMENT_METHOD = require("../constants/paymentMethod");
 
-// const handleCreditCardPayment = require("../paymentHandlers/handleCreditCardPayment");
-const handleCashPayment = require("../paymentHandlers/handleCashPayment");
-
 const router = express.Router();
 
 router.post("/:orderId", async (req, res) => {
-  const { paymentMethod, amount, paymentToken } = req.body;
+  const { paymentMethod } = req.body;
 
   if (
     !paymentMethod ||
@@ -32,30 +29,14 @@ router.post("/:orderId", async (req, res) => {
         .json({ msg: "Order has already been checked out." });
     }
 
-    let result;
-    switch (paymentMethod) {
-      // case PAYMENT_METHOD.CREDIT_CARD:
-      //   result = await handleCreditCardPayment(order, amount, paymentToken);
-      //   break;
-      case PAYMENT_METHOD.CASH:
-        result = await handleCashPayment(order);
-        break;
+    order.isCheckout = true;
+    order.paymentMethod = paymentMethod;
+    await order.save();
 
-      default:
-        return res.status(400).json({ msg: "Unsupported payment method." });
-    }
-
-    if (result.success) {
-      res.status(200).json({
-        msg: result.msg,
-        order: result.order,
-      });
-    } else {
-      res.status(400).json({
-        msg: result.msg,
-        error: result.error || null,
-      });
-    }
+    return res.status(200).json({
+      msg: `Checkout successful with ${paymentMethod}.`,
+      data: order,
+    });
   } catch (error) {
     return res.status(500).json({ msg: "Server error", error });
   }

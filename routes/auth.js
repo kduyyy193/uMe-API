@@ -6,7 +6,6 @@ const ROLES = require("../constants/roles");
 const isMerchant = require("../middlewares/roleMiddleware");
 const router = express.Router();
 
-// Đăng ký
 router.post("/register", async (req, res) => {
   const { username, password, role, businessName, location } = req.body;
 
@@ -16,12 +15,10 @@ router.post("/register", async (req, res) => {
       .json({ msg: "Username, password, and role are required." });
   }
 
-  // Kiểm tra vai trò hợp lệ
   if (!Object.values(ROLES).includes(role)) {
     return res.status(400).json({ msg: "Invalid role." });
   }
 
-  // Kiểm tra nếu vai trò là Merchant thì cần thêm thông tin businessName và location
   if (role === ROLES.MERCHANT) {
     if (!businessName || !location) {
       return res
@@ -49,11 +46,10 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Đăng nhập
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
   try {
-    const user = await User.findOne({ username, isDeleted: false }); // Chỉ tìm user chưa bị xoá
+    const user = await User.findOne({ username, isDeleted: false });
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -80,13 +76,12 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Xoá người dùng (chỉ dành cho Customer)
 router.delete("/delete/:id", isMerchant, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: "User not found" });
 
-    user.isDeleted = true; // Đánh dấu user là đã xoá
+    user.isDeleted = true;
     await user.save();
 
     res.json({ msg: "User deleted successfully" });
@@ -95,10 +90,9 @@ router.delete("/delete/:id", isMerchant, async (req, res) => {
   }
 });
 
-// Lấy danh sách người dùng (không hiển thị user đã bị xoá)
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find({ isDeleted: false }); // Không lấy user bị xoá
+    const users = await User.find({ isDeleted: false });
     res.json(users);
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });

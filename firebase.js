@@ -11,7 +11,6 @@ admin.initializeApp({
 });
 
 const db = admin.database();
-// Kiểm tra kết nối Firebase
 db.ref(".info/connected").on("value", (snapshot) => {
   if (snapshot.val() === true) {
     console.log("Firebase connected successfully.");

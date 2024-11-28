@@ -7,10 +7,10 @@ const Table = require("../models/Table");
 const router = express.Router();
 const db = require("../firebase");
 const STATUS = require("../constants/status");
+const moment = require("moment");
 
 router.use(authMiddleware);
 
-// Tạo đơn hàng
 router.post("/", async (req, res) => {
   const { tableId, items, isTakeaway } = req.body;
 
@@ -19,13 +19,18 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    // Kiểm tra thông tin bàn
     const table = await Table.findById(tableId);
     if (!table) {
       return res.status(404).json({ msg: "Table not found." });
     }
 
-    // Kiểm tra logic bàn takeaway
+    const existingOrder = await Order.findOne({ tableId, isCheckout: false });
+    if (existingOrder && !existingOrder?.isCheckout) {
+      return res
+        .status(400)
+        .json({ msg: "This table already has an active order." });
+    }
+
     if (isTakeaway && !table.isTakeaway) {
       return res
         .status(400)
@@ -39,33 +44,31 @@ router.post("/", async (req, res) => {
 
     let totalAmount = 0;
 
-    // Tính tổng tiền cho các món ăn
     for (const item of items) {
-      const menuItem = await Menu.findById(item.menuItemId);
+      const menuItem = await Menu.findById(item._id);
       if (!menuItem) {
         return res
           .status(404)
-          .json({ msg: `Menu item with ID ${item.menuItemId} not found.` });
+          .json({ msg: `Menu item with ID ${item._id} not found.` });
       }
       totalAmount += menuItem.price * item.quantity;
     }
 
-    // Tạo đơn hàng mới
     const order = new Order({
       tableId,
       uniqueId: isTakeaway ? uuidv4() : undefined,
       items,
       totalAmount,
       isTakeaway,
+      isCheckout: false,
     });
 
     await order.save();
 
-    // Đẩy đơn hàng xuống Firebase
     const orderData = {
       tableId: order.tableId.toString(),
       items: order.items.map((item) => ({
-        menuItemId: item.menuItemId.toString(),
+        _id: item._id.toString(),
         quantity: item.quantity,
         name: item.name,
         status: item?.status ?? STATUS.NEW,
@@ -80,14 +83,13 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({
       msg: "Order created successfully.",
-      order,
+      data: order,
     });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
 });
 
-// Cập nhật đơn hàng
 router.put("/:orderId", async (req, res) => {
   const { items } = req.body;
 
@@ -96,9 +98,8 @@ router.put("/:orderId", async (req, res) => {
   }
 
   try {
-    // Tìm đơn hàng dựa trên orderId
     const order = await Order.findById(req.params.orderId).populate(
-      "items.menuItemId"
+      "items._id"
     );
 
     if (!order) {
@@ -107,42 +108,37 @@ router.put("/:orderId", async (req, res) => {
 
     let totalAmount = 0;
 
-    // Kiểm tra trạng thái các món ăn trước khi cập nhật
     for (const item of items) {
       const existingItem = order.items.find(
-        (i) => i.menuItemId.toString() === item.menuItemId
+        (i) => i._id.toString() === item._id
       );
 
-      // Nếu món ăn đã tồn tại trong đơn hàng
       if (existingItem) {
         if (
           existingItem.status === "IN_PROGRESS" ||
           existingItem.status === "DONE"
         ) {
           return res.status(400).json({
-            msg: `Cannot edit item ${item.menuItemId} because its status is ${existingItem.status}.`,
+            msg: `Cannot edit item ${item._id} because its status is ${existingItem.status}.`,
           });
         }
 
-        // Cập nhật số lượng món ăn
         existingItem.quantity = item.quantity;
 
-        // Tính tổng tiền cho món ăn đã cập nhật
-        const menuItem = await Menu.findById(item.menuItemId);
+        const menuItem = await Menu.findById(item._id);
         if (!menuItem) {
           return res
             .status(404)
-            .json({ msg: `Menu item with ID ${item.menuItemId} not found.` });
+            .json({ msg: `Menu item with ID ${item._id} not found.` });
         }
         totalAmount += menuItem.price * existingItem.quantity;
       } else {
         return res
           .status(404)
-          .json({ msg: `Item with ID ${item.menuItemId} not found in order.` });
+          .json({ msg: `Item with ID ${item._id} not found in order.` });
       }
     }
 
-    // Cập nhật tổng tiền
     order.totalAmount = totalAmount;
 
     await order.save();
@@ -152,34 +148,28 @@ router.put("/:orderId", async (req, res) => {
   }
 });
 
-// Lấy đơn hàng theo table ID
 router.get("/table/:tableId", async (req, res) => {
   const { tableId } = req.params;
 
   try {
-    const orders = await Order.find({ tableId, isCheckout: false }).populate(
-      "items.menuItemId"
-    );
+    const orders = await Order.find({ tableId, isCheckout: false });
 
     if (orders.length === 0) {
       return res.status(404).json({ msg: "No orders found for this table." });
     }
 
     res.json({
-      data: orders,
+      data: orders?.[0],
     });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
 });
 
-// Lấy đơn hàng theo unique ID cho bàn takeaway
 router.get("/takeaway/:uniqueId", async (req, res) => {
   const { uniqueId } = req.params;
   try {
-    const order = await Order.findOne({ uniqueId }).populate(
-      "items.menuItemId"
-    );
+    const order = await Order.findOne({ uniqueId }).populate("items._id");
 
     if (!order) {
       return res.status(404).json({ msg: "Order not found" });
@@ -193,9 +183,8 @@ router.get("/takeaway/:uniqueId", async (req, res) => {
   }
 });
 
-// Cập nhật trạng thái món ăn trong đơn hàng
 router.put("/update-status/:orderId", async (req, res) => {
-  const { items } = req.body; // items là một mảng các đối tượng chứa menuItemId và status
+  const { items } = req.body;
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ msg: "Items are required." });
   }
@@ -207,23 +196,20 @@ router.put("/update-status/:orderId", async (req, res) => {
     }
     console.log(items);
     items.forEach((item) => {
-      const orderItem = order.items.find(
-        (i) => i.menuItemId.toString() === item.menuItemId
-      );
+      const orderItem = order.items.find((i) => i._id.toString() === item._id);
 
       if (orderItem) {
-        // Cập nhật trạng thái cho món ăn
+      
         orderItem.status = item.status;
       }
     });
 
     await order.save();
 
-    // Đẩy đơn hàng xuống Firebase
     const orderData = {
       tableId: order.tableId.toString(),
       items: order.items.map((item) => ({
-        menuItemId: item.menuItemId.toString(),
+        _id: item._id.toString(),
         quantity: item.quantity,
         name: item.name,
         status: item?.status ?? STATUS.NEW,
@@ -237,6 +223,34 @@ router.put("/update-status/:orderId", async (req, res) => {
     await db.ref(`orders/${order._id}`).set(orderData);
 
     res.json({ msg: "Order item status updated successfully.", order });
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error });
+  }
+});
+
+router.get("/checkout", async (req, res) => {
+  try {
+    const orders = await Order.find({ isCheckout: true })
+      .select("uniqueId isCheckout paymentMethod totalAmount isTakeaway createdAt tableId")
+      .lean();
+
+    if (orders.length === 0) {
+      return res.status(404).json({ msg: "No checked-out orders found." });
+    }
+
+    const orderWithTableInfo = await Promise.all(orders.map(async (order) => {
+      const table = await Table.findById(order.tableId).select('tableNumber');
+      return {
+        ...order,
+        createdAt: moment(order.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+        tableNumber: table ? table.tableNumber : null 
+      };
+    }));
+
+    res.status(200).json({
+      msg: "Checkout orders retrieved successfully.",
+      data: orderWithTableInfo,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }

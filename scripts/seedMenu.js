@@ -12,17 +12,15 @@ const connectDB = async () => {
     console.log("Connected to MongoDB!");
   } catch (err) {
     console.error("Error connecting to MongoDB:", err);
-    process.exit(1);  // Dừng script nếu không thể kết nối tới MongoDB
+    process.exit(1);
   }
 };
 
 const seedCategoriesAndMenus = async () => {
   try {
-    // Xóa tất cả dữ liệu trong Category và Menu
     await Category.deleteMany();
     await Menu.deleteMany();
 
-    // Tạo các Category
     const categories = await Category.create([
       { name: 'Lẩu', description: 'Món ăn lẩu phong phú và đa dạng' },
       { name: 'Nướng', description: 'Các món nướng thơm ngon, hấp dẫn' },
@@ -30,11 +28,10 @@ const seedCategoriesAndMenus = async () => {
       { name: 'Thức uống', description: 'Nước giải khát và các loại đồ uống hấp dẫn' },
     ]);
 
-    // Tạo món ăn cho từng Category
-    await createMenuForCategory(categories[0]._id, 'Lẩu');  // Lẩu
-    await createMenuForCategory(categories[1]._id, 'Nướng'); // Nướng
-    await createMenuForCategory(categories[2]._id, 'Ốc');    // Ốc
-    await createMenuForCategory(categories[3]._id, 'Thức uống'); // Thức uống
+    await createMenuForCategory(categories[0]._id, 'Lẩu'); 
+    await createMenuForCategory(categories[1]._id, 'Nướng');
+    await createMenuForCategory(categories[2]._id, 'Ốc');   
+    await createMenuForCategory(categories[3]._id, 'Thức uống');
 
     console.log("Successfully seeded categories and menus!");
   } catch (err) {
@@ -54,7 +51,6 @@ const createMenuForCategory = async (categoryId, categoryName) => {
   console.log(`Menu items for category "${categoryName}" created.`);
 };
 
-// Hàm trả về danh sách món ăn cho từng category
 const getMenuItemsForCategory = (categoryName) => {
   switch (categoryName) {
     case 'Lẩu':
