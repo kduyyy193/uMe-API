@@ -199,7 +199,6 @@ router.put("/update-status/:orderId", async (req, res) => {
       const orderItem = order.items.find((i) => i._id.toString() === item._id);
 
       if (orderItem) {
-      
         orderItem.status = item.status;
       }
     });
@@ -230,26 +229,46 @@ router.put("/update-status/:orderId", async (req, res) => {
 
 router.get("/checkout", async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+
+    const pageSize = parseInt(req.query.pageSize) || 10;
+
+    const skip = (page - 1) * pageSize;
+
     const orders = await Order.find({ isCheckout: true })
       .select("uniqueId isCheckout paymentMethod totalAmount isTakeaway createdAt tableId")
+      .skip(skip)
+      .limit(pageSize)
       .lean();
 
     if (orders.length === 0) {
       return res.status(404).json({ msg: "No checked-out orders found." });
     }
 
-    const orderWithTableInfo = await Promise.all(orders.map(async (order) => {
-      const table = await Table.findById(order.tableId).select('tableNumber');
-      return {
-        ...order,
-        createdAt: moment(order.createdAt).format('YYYY-MM-DD HH:mm:ss'),
-        tableNumber: table ? table.tableNumber : null 
-      };
-    }));
+    const totalOrders = await Order.countDocuments({ isCheckout: true });
+
+    const totalPages = Math.ceil(totalOrders / pageSize);
+
+    const orderWithTableInfo = await Promise.all(
+      orders.map(async (order) => {
+        const table = await Table.findById(order.tableId).select('tableNumber');
+        return {
+          ...order,
+          createdAt: moment(order.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+          tableNumber: table ? table.tableNumber : null 
+        };
+      })
+    );
 
     res.status(200).json({
       msg: "Checkout orders retrieved successfully.",
       data: orderWithTableInfo,
+      pageInfo: {
+        currentPage: page,
+        pageSize: pageSize,
+        count: totalOrders,
+        totalPages: totalPages,
+      },
     });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });

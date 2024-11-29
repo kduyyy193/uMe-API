@@ -1,9 +1,9 @@
 const express = require("express");
 const Category = require("../models/Category");
-const authMiddleware = require("../middlewares/authMiddleware");
+const isMerchant = require("../middlewares/roleMiddleware");
 const router = express.Router();
 
-router.use(authMiddleware);
+router.use(isMerchant);
 
 router.post("/", async (req, res) => {
   const { name, description } = req.body;

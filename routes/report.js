@@ -1,35 +1,43 @@
 const express = require("express");
 const Order = require("../models/Order");
-const isMerchant = require("../middlewares/roleMiddleware");
+const moment = require("moment");
 const router = express.Router();
+const isMerchant = require("../middlewares/roleMiddleware");
 
 router.get("/", isMerchant, async (req, res) => {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, period } = req.query;
+
+  if (!startDate || !endDate) {
+    return res
+      .status(400)
+      .json({ msg: "Both startDate and endDate are required." });
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (isNaN(start) || isNaN(end)) {
+    return res.status(400).json({ msg: "Invalid date format." });
+  }
+
+  let match = {
+    isCheckout: true,
+    createdAt: { $gte: start, $lte: end },
+  };
 
   try {
-    const match = {
-      isCheckout: true,
-    };
-
-    if (startDate || endDate) {
-      match.createdAt = {};
-      if (startDate) {
-        match.createdAt.$gte = new Date(startDate);
-      }
-      if (endDate) {
-        match.createdAt.$lte = new Date(endDate);
-      }
-    }
-
     const report = await Order.aggregate([
       { $match: match },
+      { $unwind: "$items" },
       {
-        $unwind: "$items",
+        $addFields: {
+          itemRevenue: { $multiply: ["$items.price", "$items.quantity"] },
+        },
       },
       {
         $group: {
-          _id: "$items.menuItemId",
-          totalRevenue: { $sum: "$totalAmount" },
+          _id: "$items._id",
+          totalRevenue: { $sum: "$itemRevenue" },
           totalQuantity: { $sum: "$items.quantity" },
           menuItem: { $first: "$items" },
         },
@@ -42,9 +50,7 @@ router.get("/", isMerchant, async (req, res) => {
           as: "menuDetails",
         },
       },
-      {
-        $unwind: "$menuDetails",
-      },
+      { $unwind: "$menuDetails" },
       {
         $project: {
           _id: 0,
@@ -56,18 +62,44 @@ router.get("/", isMerchant, async (req, res) => {
       },
     ]);
 
-    if (report.length === 0) {
-      return res.status(404).json({ msg: "No sales data found." });
-    }
-
     const totalRevenue = report.reduce(
       (acc, item) => acc + item.totalRevenue,
       0
     );
 
+    const topMenuItems = report
+      .sort((a, b) => b.totalQuantity - a.totalQuantity)
+      .slice(0, 3);
+
+    const paymentMethodReport = await Order.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$paymentMethod",
+          totalAmount: { $sum: "$totalAmount" },
+        },
+      },
+    ]);
+
+    const takeawayReport = await Order.aggregate([
+      { $match: { ...match, isTakeaway: true } },
+      { $group: { _id: null, totalAmount: { $sum: "$totalAmount" } } },
+    ]);
+
+    const nonTakeawayReport = await Order.aggregate([
+      { $match: { ...match, isTakeaway: false } },
+      { $group: { _id: null, totalAmount: { $sum: "$totalAmount" } } },
+    ]);
+
     res.json({
-      totalRevenue,
-      report,
+      data: {
+        totalRevenue,
+        report,
+        topMenuItems,
+        paymentMethodReport,
+        takeawayReport,
+        nonTakeawayReport,
+      },
     });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });

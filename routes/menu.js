@@ -1,10 +1,10 @@
 const express = require("express");
 const Menu = require("../models/Menu");
 const Category = require("../models/Category");
-const authMiddleware = require("../middlewares/authMiddleware");
+const isMerchant = require("../middlewares/roleMiddleware");
 const router = express.Router();
 
-router.use(authMiddleware);
+router.use(isMerchant);
 
 router.post("/:categoryId", async (req, res) => {
   const { name, quantity, price, description } = req.body;

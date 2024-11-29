@@ -1,8 +1,10 @@
 const express = require("express");
 const Order = require("../models/Order");
 const PAYMENT_METHOD = require("../constants/paymentMethod");
-
+const isMerchant = require("../middlewares/roleMiddleware");
 const router = express.Router();
+
+router.use(isMerchant);
 
 router.post("/:orderId", async (req, res) => {
   const { paymentMethod } = req.body;
