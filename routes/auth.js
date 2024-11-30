@@ -38,6 +38,7 @@ router.post("/register", async (req, res) => {
       businessName: role === ROLES.MERCHANT ? businessName : undefined,
       location: role === ROLES.MERCHANT ? location : undefined,
     });
+    console.log(user)
 
     await user.save();
     res.status(201).json({ msg: "User created", user });

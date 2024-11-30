@@ -1,12 +1,13 @@
 const express = require("express");
 const Menu = require("../models/Menu");
 const Category = require("../models/Category");
+const authMiddleware = require("../middlewares/authMiddleware");
 const isMerchant = require("../middlewares/roleMiddleware");
 const router = express.Router();
 
-router.use(isMerchant);
+router.use(authMiddleware);
 
-router.post("/:categoryId", async (req, res) => {
+router.post("/:categoryId", isMerchant, async (req, res) => {
   const { name, quantity, price, description } = req.body;
   const { categoryId } = req.params;
 
@@ -78,7 +79,7 @@ router.get("/:categoryId/:id", async (req, res) => {
   }
 });
 
-router.put("/:categoryId/:id", async (req, res) => {
+router.put("/:categoryId/:id",isMerchant, async (req, res) => {
   const { categoryId, id } = req.params;
   const { name, quantity, price, description, available } = req.body;
 
@@ -105,7 +106,7 @@ router.put("/:categoryId/:id", async (req, res) => {
   }
 });
 
-router.delete("/:categoryId/:id", async (req, res) => {
+router.delete("/:categoryId/:id",isMerchant, async (req, res) => {
   const { categoryId, id } = req.params;
 
   try {

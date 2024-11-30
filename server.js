@@ -1,51 +1,31 @@
 const express = require("express");
-const mongoose = require("mongoose");
+const http = require("http");
 const cors = require("cors");
-const tablesRoutes = require("./routes/tables");
-const authRoutes = require("./routes/auth");
-const categoryRoutes = require("./routes/category");
-const menuRoutes = require("./routes/menu");
-const orderRoutes = require("./routes/orders");
-const checkoutRoutes = require("./routes/checkout");
-const reportRoutes = require("./routes/report");
 require("dotenv").config();
 
+const socketMiddleware = require("./middlewares/socketMiddleware"); // Import middleware
+const initRoutes = require("./routes/initRoutes");
+const connectDB = require("./db");
 const createDefaultTable = require("./heplers/createDefaultTable");
+const setupSocket = require("./socket");
 
 const app = express();
 app.use(express.json());
+
 app.use(
   cors({
     origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log("MongoDB connected");
-    createDefaultTable();
-  })
-  .catch((err) => console.log(err));
+const server = http.createServer(app);
+const io = setupSocket(server);
+app.use(socketMiddleware(io));
 
-app.use("/api/tables", tablesRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/category", categoryRoutes);
-app.use("/api/menu", menuRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/checkout", checkoutRoutes);
-app.use("/api/report", reportRoutes);
-
-app.use("/", (_, res) => {
-  res.send("Hello World!");
-});
-
+initRoutes(app);
+connectDB(process.env.MONGO_URI);
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

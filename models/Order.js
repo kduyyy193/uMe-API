@@ -23,7 +23,7 @@ const ItemSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["NEW", "IN_PROGRESS", "DONE"],
+    enum: ["NEW", "INPROGRESS", "DONE"],
     default: "NEW",
   },
 });

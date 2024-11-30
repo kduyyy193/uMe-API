@@ -16,6 +16,9 @@ const MenuSchema = new mongoose.Schema({
   description: {
     type: String,
   },
+  status: {
+    type: String,
+  },
   available: {
     type: Boolean,
     default: true,

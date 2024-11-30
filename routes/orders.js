@@ -1,8 +1,8 @@
 const express = require("express");
-const Menu = require("../models/Menu");
-const Order = require("../models/Order");
 const { v4: uuidv4 } = require("uuid");
 const authMiddleware = require("../middlewares/authMiddleware");
+const Order = require("../models/Order");
+const Menu = require("../models/Menu");
 const Table = require("../models/Table");
 const router = express.Router();
 const db = require("../firebase");
@@ -25,7 +25,7 @@ router.post("/", async (req, res) => {
     }
 
     const existingOrder = await Order.findOne({ tableId, isCheckout: false });
-    if (existingOrder && !existingOrder?.isCheckout) {
+    if (existingOrder) {
       return res
         .status(400)
         .json({ msg: "This table already has an active order." });
@@ -51,6 +51,7 @@ router.post("/", async (req, res) => {
           .status(404)
           .json({ msg: `Menu item with ID ${item._id} not found.` });
       }
+      item.status = "NEW";
       totalAmount += menuItem.price * item.quantity;
     }
 
@@ -71,8 +72,8 @@ router.post("/", async (req, res) => {
         _id: item._id.toString(),
         quantity: item.quantity,
         name: item.name,
-        status: item?.status ?? STATUS.NEW,
-        note: item?.note ?? "",
+        status: item.status,
+        note: item.note || "",
       })),
       totalAmount: order.totalAmount,
       isTakeaway: order.isTakeaway,
@@ -80,6 +81,11 @@ router.post("/", async (req, res) => {
     };
 
     await db.ref(`orders/${order._id}`).set(orderData);
+
+    const io = req.io;
+    if (io) {
+      io.emit("newOrder", { message: "New Order" });
+    }
 
     res.status(201).json({
       msg: "Order created successfully.",
@@ -89,6 +95,126 @@ router.post("/", async (req, res) => {
     res.status(500).json({ msg: "Server error", error });
   }
 });
+
+router.put("/update-status", async (req, res) => {
+  const { orderId, itemId, newStatus } = req.body;
+console.log( orderId, itemId, newStatus )
+  if (!orderId || !itemId || !newStatus) {
+    return res
+      .status(400)
+      .json({ msg: "Order ID, item ID, and new status are required." });
+  }
+
+  if (!["NEW", "INPROGRESS", "DONE"].includes(newStatus)) {
+    return res.status(400).json({
+      msg: "Invalid status. Allowed statuses: NEW, INPROGRESS, DONE.",
+    });
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ msg: "Order not found." });
+    }
+
+    const itemIndex = order.items.findIndex(
+      (item) => item._id.toString() === itemId
+    );
+    if (itemIndex === -1) {
+      return res.status(404).json({ msg: "Item not found in order." });
+    }
+
+    order.items[itemIndex].status = newStatus;
+
+    await order.save();
+
+    res.status(200).json({
+      msg: "Item status updated successfully.",
+      data: order.items[itemIndex],
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error });
+  }
+});
+
+router.delete("/delete-done-items", async (req, res) => {
+  const { orderId, itemId } = req.body;
+
+  if (!orderId || !itemId) {
+    return res.status(400).json({ msg: "Order ID and item ID are required." });
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ msg: "Order not found." });
+    }
+
+    const itemIndex = order.items.findIndex(
+      (item) => item._id.toString() === itemId
+    );
+    if (itemIndex === -1) {
+      return res.status(404).json({ msg: "Item not found in order." });
+    }
+
+    if (order.items[itemIndex].status === "done") {
+      order.items.splice(itemIndex, 1);
+      await order.save();
+
+      res.status(200).json({ msg: "Item deleted successfully." });
+    } else {
+      res.status(400).json({ msg: "Item is not in 'done' status." });
+    }
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error });
+  }
+});
+
+router.get("/order-items", async (req, res) => {
+  try {
+    const orders = await Order.find({ isCheckout: false });
+    const inprogress = [];
+    const newItems = [];
+    const done = [];
+
+    for (let order of orders) {
+      const table = await Table.findById(order.tableId);
+      if (!table) {
+        continue;
+      }
+
+      for (let item of order.items) {
+        const menuItem = await Menu.findById(item._id);
+        if (!menuItem) {
+          continue;
+        }
+
+        const itemData = {
+          orderId: order._id,
+          tableName: table?.tableNumber,
+          menuItem: menuItem?.name,
+          itemId: menuItem?._id,
+          quantity: item.quantity,
+          status: item.status,
+          note: item.note || "",
+        };
+
+        if (item.status === 'INPROGRESS') {
+          inprogress.push(itemData);
+        } else if (item.status === 'NEW') {
+          newItems.push(itemData);
+        } else if (item.status === 'DONE') {
+          done.push(itemData);
+        }
+      }
+    }
+
+    res.status(200).json({ data: {inprogress, new: newItems, done} });
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error });
+  }
+});
+
 
 router.put("/:orderId", async (req, res) => {
   const { items } = req.body;
@@ -227,6 +353,49 @@ router.put("/update-status/:orderId", async (req, res) => {
   }
 });
 
+router.put("/update-items/:orderId", async (req, res) => {
+  const { orderId } = req.params;
+  const { items } = req.body;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ msg: "Items are required and should be an array." });
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ msg: "Order not found." });
+    }
+    let totalAmount = order.totalAmount;
+    for (const item of items) {
+      const menuItem = await Menu.findById(item._id);
+      if (!menuItem) {
+        return res.status(404).json({ msg: `Menu item with ID ${item._id} not found.` });
+      }
+      totalAmount += menuItem.price * item.quantity;
+      order.items.push({
+        _id: item._id,
+        name: menuItem.name,
+        quantity: item.quantity,
+        price: menuItem.price,
+        status: "NEW",
+        note: item.note || "",
+      });
+    }
+
+    order.totalAmount = totalAmount;
+    await order.save();
+
+    res.status(200).json({
+      msg: "Items added to order successfully.",
+      data: order,
+    });
+  } catch (error) {
+    console.error("Error updating order:", error);
+    res.status(500).json({ msg: "Server error", error });
+  }
+});
+
 router.get("/checkout", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -236,7 +405,9 @@ router.get("/checkout", async (req, res) => {
     const skip = (page - 1) * pageSize;
 
     const orders = await Order.find({ isCheckout: true })
-      .select("uniqueId isCheckout paymentMethod totalAmount isTakeaway createdAt tableId")
+      .select(
+        "uniqueId isCheckout paymentMethod totalAmount isTakeaway createdAt tableId"
+      )
       .skip(skip)
       .limit(pageSize)
       .lean();
@@ -251,11 +422,11 @@ router.get("/checkout", async (req, res) => {
 
     const orderWithTableInfo = await Promise.all(
       orders.map(async (order) => {
-        const table = await Table.findById(order.tableId).select('tableNumber');
+        const table = await Table.findById(order.tableId).select("tableNumber");
         return {
           ...order,
-          createdAt: moment(order.createdAt).format('YYYY-MM-DD HH:mm:ss'),
-          tableNumber: table ? table.tableNumber : null 
+          createdAt: moment(order.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+          tableNumber: table ? table.tableNumber : null,
         };
       })
     );
