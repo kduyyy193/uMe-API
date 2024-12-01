@@ -66,6 +66,10 @@ router.post("/", async (req, res) => {
 
     await order.save();
 
+    table.status = "occupied";
+    console.log(table.status)
+    await table.save();
+
     const orderData = {
       tableId: order.tableId.toString(),
       items: order.items.map((item) => ({
@@ -98,7 +102,6 @@ router.post("/", async (req, res) => {
 
 router.put("/update-status", async (req, res) => {
   const { orderId, itemId, newStatus } = req.body;
-console.log( orderId, itemId, newStatus )
   if (!orderId || !itemId || !newStatus) {
     return res
       .status(400)
@@ -128,6 +131,18 @@ console.log( orderId, itemId, newStatus )
 
     await order.save();
 
+    const io = req.io;
+    if (newStatus === 'DONE') {
+      if (io) {
+        io.emit("itemCompleted", { message: `${order.items[itemIndex]?.name}` });
+      }
+    }
+    if (newStatus === 'INPROGRESS') {
+      if (io) {
+        io.emit("itemInProgress", { message: `${order.items[itemIndex]?.name}` });
+      }
+    }
+
     res.status(200).json({
       msg: "Item status updated successfully.",
       data: order.items[itemIndex],
@@ -138,7 +153,7 @@ console.log( orderId, itemId, newStatus )
 });
 
 router.delete("/delete-done-items", async (req, res) => {
-  const { orderId, itemId } = req.body;
+  const { orderId, itemId } = req.query;
 
   if (!orderId || !itemId) {
     return res.status(400).json({ msg: "Order ID and item ID are required." });
@@ -157,13 +172,13 @@ router.delete("/delete-done-items", async (req, res) => {
       return res.status(404).json({ msg: "Item not found in order." });
     }
 
-    if (order.items[itemIndex].status === "done") {
+    if (order.items[itemIndex].status === "DONE") {
       order.items.splice(itemIndex, 1);
       await order.save();
 
-      res.status(200).json({ msg: "Item deleted successfully." });
+      res.status(200).json({ msg: "Item deleted successfully.", data: { success: true} });
     } else {
-      res.status(400).json({ msg: "Item is not in 'done' status." });
+      res.status(400).json({ msg: "Item is not in 'DONE' status." });
     }
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
@@ -214,7 +229,6 @@ router.get("/order-items", async (req, res) => {
     res.status(500).json({ msg: "Server error", error });
   }
 });
-
 
 router.put("/:orderId", async (req, res) => {
   const { items } = req.body;
@@ -366,13 +380,18 @@ router.put("/update-items/:orderId", async (req, res) => {
     if (!order) {
       return res.status(404).json({ msg: "Order not found." });
     }
-    let totalAmount = order.totalAmount;
+
+    order.items = [];
+    let totalAmount = 0;
+
     for (const item of items) {
       const menuItem = await Menu.findById(item._id);
       if (!menuItem) {
         return res.status(404).json({ msg: `Menu item with ID ${item._id} not found.` });
       }
+
       totalAmount += menuItem.price * item.quantity;
+
       order.items.push({
         _id: item._id,
         name: menuItem.name,
@@ -384,14 +403,15 @@ router.put("/update-items/:orderId", async (req, res) => {
     }
 
     order.totalAmount = totalAmount;
+
     await order.save();
 
     res.status(200).json({
-      msg: "Items added to order successfully.",
+      msg: "Order items updated successfully.",
       data: order,
     });
   } catch (error) {
-    console.error("Error updating order:", error);
+    console.error("Error updating order items:", error);
     res.status(500).json({ msg: "Server error", error });
   }
 });

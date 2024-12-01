@@ -24,7 +24,7 @@ router.post("/", isMerchant, async (req, res) => {
   }
 });
 
-router.get("/:id", isMerchant, async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const table = await Table.findById(req.params.id);
 
