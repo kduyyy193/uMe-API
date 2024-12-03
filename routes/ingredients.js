@@ -1,12 +1,12 @@
 const express = require("express");
 const isMerchant = require("../middlewares/roleMiddleware");
-const { Ingredient } = require("../models/Ingredient");
-const { InventoryHistory } = require("../models/InventoryHistory");
+const Ingredient = require("../models/Ingredient");
+const InventoryHistory = require("../models/InventoryHistory");
 const router = express.Router();
 
 router.use(isMerchant);
 
-router.get("/ingredients", async (req, res) => {
+router.get("/", async (req, res) => {
   const { name, page = 1, limit = 10 } = req.query;
 
   const filter = {};
@@ -31,26 +31,36 @@ router.get("/ingredients", async (req, res) => {
   }
 });
 
-router.post("/ingredients", async (req, res) => {
-  const { name, quantity, unit } = req.body;
+router.post("/", async (req, res) => {
+  const { name, quantity, unit, unitPrice } = req.body;
 
-  if (!name || !quantity || !unit) {
+  if (!name || !quantity || !unit || !unitPrice) {
     return res.status(400).json({ msg: "All fields are required." });
   }
 
   try {
-    const ingredient = new Ingredient({ name, quantity, unit });
+    const totalCost = quantity * unitPrice;
+
+    const ingredient = new Ingredient({
+      name,
+      quantity,
+      unit,
+      unitPrice,
+      totalCost,
+    });
+
     await ingredient.save();
 
-    res
-      .status(201)
-      .json({ msg: "Ingredient added successfully.", data: ingredient });
+    res.status(201).json({
+      msg: "Ingredient added successfully.",
+      data: ingredient,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
 });
 
-router.put("/ingredients/:id", async (req, res) => {
+router.put("/:id", async (req, res) => {
   const { name, quantity, unit } = req.body;
 
   try {
@@ -73,98 +83,22 @@ router.put("/ingredients/:id", async (req, res) => {
   }
 });
 
-router.post("/inventory/in", async (req, res) => {
-  const { ingredientId, quantity, description } = req.body;
-
-  if (!ingredientId || !quantity) {
-    return res
-      .status(400)
-      .json({ msg: "Ingredient ID and quantity are required." });
-  }
-
+router.delete("/:id", async (req, res) => {
   try {
-    const ingredient = await Ingredient.findById(ingredientId);
+    const ingredient = await Ingredient.findByIdAndDelete(req.params.id);
     if (!ingredient) {
       return res.status(404).json({ msg: "Ingredient not found." });
     }
 
-    ingredient.quantity += quantity;
-
-    const history = new InventoryHistory({
-      ingredientId,
-      type: "IN",
-      quantity,
-      description,
+    res.status(200).json({
+      msg: "Ingredient and its history deleted successfully.",
+      data: {
+        succcess: true,
+      },
     });
-
-    await ingredient.save();
-    await history.save();
-
-    res
-      .status(200)
-      .json({ msg: "Ingredient added to inventory.", data: ingredient });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
 });
 
-router.post("/inventory/out", async (req, res) => {
-  const { ingredientId, quantity, description } = req.body;
-
-  if (!ingredientId || !quantity) {
-    return res
-      .status(400)
-      .json({ msg: "Ingredient ID and quantity are required." });
-  }
-
-  try {
-    const ingredient = await Ingredient.findById(ingredientId);
-    if (!ingredient) {
-      return res.status(404).json({ msg: "Ingredient not found." });
-    }
-
-    if (ingredient.quantity < quantity) {
-      return res.status(400).json({ msg: "Not enough stock available." });
-    }
-
-    ingredient.quantity -= quantity;
-
-    const history = new InventoryHistory({
-      ingredientId,
-      type: "OUT",
-      quantity,
-      description,
-    });
-
-    await ingredient.save();
-    await history.save();
-
-    res
-      .status(200)
-      .json({ msg: "Ingredient removed from inventory.", data: ingredient });
-  } catch (error) {
-    res.status(500).json({ msg: "Server error", error });
-  }
-});
-
-router.get("/inventory/history", async (req, res) => {
-  const { ingredientId, startDate, endDate } = req.query;
-
-  const filter = {};
-  if (ingredientId) filter.ingredientId = ingredientId;
-  if (startDate || endDate) {
-    filter.date = {};
-    if (startDate) filter.date.$gte = new Date(startDate);
-    if (endDate) filter.date.$lte = new Date(endDate);
-  }
-
-  try {
-    const history = await InventoryHistory.find(filter)
-      .populate("ingredientId", "name")
-      .sort({ date: -1 });
-
-    res.status(200).json({ data: history });
-  } catch (error) {
-    res.status(500).json({ msg: "Server error", error });
-  }
-});
+module.exports = router;

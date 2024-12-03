@@ -1,5 +1,7 @@
 const express = require("express");
 const Order = require("../models/Order");
+const Ingredient = require("../models/Ingredient"); // Model Ingredient để lấy unitPrice
+const InventoryHistory = require("../models/InventoryHistory");  // Model InventoryHistory để lấy thông tin xuất kho
 const moment = require("moment");
 const router = express.Router();
 const isMerchant = require("../middlewares/roleMiddleware");
@@ -26,6 +28,7 @@ router.get("/", isMerchant, async (req, res) => {
   };
 
   try {
+    // Báo cáo đơn hàng
     const report = await Order.aggregate([
       { $match: match },
       { $unwind: "$items" },
@@ -91,6 +94,56 @@ router.get("/", isMerchant, async (req, res) => {
       { $group: { _id: null, totalAmount: { $sum: "$totalAmount" } } },
     ]);
 
+    // Báo cáo chi phí nhập kho
+    const totalCostIn = await Ingredient.aggregate([
+      { $match: { createdAt: { $gte: start, $lte: end } } },
+      {
+        $addFields: {
+          totalCost: { $multiply: ["$quantity", "$unitPrice"] }, // Tổng chi phí nhập kho (số lượng * đơn giá)
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalCostIn: { $sum: "$totalCost" }, // Tổng chi phí nhập kho
+        },
+      },
+    ]);
+
+    const totalCostInAmount = totalCostIn.length > 0 ? totalCostIn[0].totalCostIn : 0;
+
+    // Báo cáo chi phí xuất kho (dựa vào InventoryHistory)
+    const totalCostOut = await InventoryHistory.aggregate([
+      { $match: { date: { $gte: start, $lte: end }, type: "OUT" } },
+      {
+        $lookup: {
+          from: "ingredients",  // Liên kết với bảng Ingredient để lấy unitPrice của nguyên liệu
+          localField: "ingredientId",  // Trường chứa ID nguyên liệu trong InventoryHistory
+          foreignField: "_id",
+          as: "ingredientDetails",
+        },
+      },
+      { $unwind: "$ingredientDetails" },
+      {
+        $addFields: {
+          totalCost: {
+            $multiply: [
+              "$quantity", 
+              "$ingredientDetails.unitPrice"  // Lấy unitPrice từ Ingredient
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalCostOut: { $sum: "$totalCost" }, // Tổng chi phí xuất kho
+        },
+      },
+    ]);
+
+    const totalCostOutAmount = totalCostOut.length > 0 ? totalCostOut[0].totalCostOut : 0;
+
     res.json({
       data: {
         totalRevenue,
@@ -99,6 +152,8 @@ router.get("/", isMerchant, async (req, res) => {
         paymentMethodReport,
         takeawayReport,
         nonTakeawayReport,
+        totalCostIn: totalCostInAmount,  // Tổng chi phí nhập kho
+        totalCostOut: totalCostOutAmount,  // Tổng chi phí xuất kho
       },
     });
   } catch (error) {
