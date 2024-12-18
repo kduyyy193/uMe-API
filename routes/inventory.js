@@ -2,9 +2,6 @@ const express = require("express");
 const Ingredient = require("../models/Ingredient");
 const InventoryHistory = require("../models/InventoryHistory");
 const router = express.Router();
-const isMerchant = require("../middlewares/roleMiddleware");
-
-router.use(isMerchant);
 
 router.post("/in", async (req, res) => {
   const { ingredientId, quantity, description } = req.body;
@@ -48,6 +45,12 @@ router.post("/out", async (req, res) => {
     return res
       .status(400)
       .json({ msg: "Ingredient ID and quantity are required." });
+  }
+
+  if (quantity <= 0) {
+    return res
+      .status(400)
+      .json({ msg: "Quantity must be greater than 0." });
   }
 
   try {

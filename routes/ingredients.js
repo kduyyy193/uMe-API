@@ -1,30 +1,39 @@
 const express = require("express");
 const isMerchant = require("../middlewares/roleMiddleware");
 const Ingredient = require("../models/Ingredient");
-const InventoryHistory = require("../models/InventoryHistory");
 const router = express.Router();
 
 router.use(isMerchant);
 
 router.get("/", async (req, res) => {
-  const { name, page = 1, limit = 10 } = req.query;
-
-  const filter = {};
-  if (name) {
-    filter.name = { $regex: name, $options: "i" };
-  }
-
   try {
-    const totalCount = await Ingredient.countDocuments(filter);
-    const ingredients = await Ingredient.find(filter)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
-      .sort({ name: 1 });
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+
+    const skip = (page - 1) * pageSize;
+
+    const ingredients = await Ingredient.find()
+      .skip(skip)
+      .limit(pageSize)
+      .lean(); 
+
+    if (ingredients.length === 0) {
+      return res.status(404).json({ msg: "No ingredients found." });
+    }
+
+    const totalIngredients = await Ingredient.countDocuments();
+
+    const totalPages = Math.ceil(totalIngredients / pageSize);
 
     res.status(200).json({
-      msg: "List of ingredients retrieved successfully.",
+      msg: "Ingredients retrieved successfully.",
       data: ingredients,
-      totalCount,
+      pageInfo: {
+        currentPage: page,
+        pageSize: pageSize,
+        count: totalIngredients,
+        totalPages: totalPages,
+      },
     });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });

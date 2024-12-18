@@ -10,7 +10,6 @@ router.use(authMiddleware);
 router.post("/:categoryId", isMerchant, async (req, res) => {
   const { name, quantity, price, description } = req.body;
   const { categoryId } = req.params;
-
   if (!name || !quantity || !price || !categoryId) {
     return res
       .status(400)
@@ -79,7 +78,7 @@ router.get("/:categoryId/:id", async (req, res) => {
   }
 });
 
-router.put("/:categoryId/:id",isMerchant, async (req, res) => {
+router.put("/:categoryId/:id", isMerchant, async (req, res) => {
   const { categoryId, id } = req.params;
   const { name, quantity, price, description, available } = req.body;
 
@@ -106,7 +105,7 @@ router.put("/:categoryId/:id",isMerchant, async (req, res) => {
   }
 });
 
-router.delete("/:categoryId/:id",isMerchant, async (req, res) => {
+router.delete("/:categoryId/:id", isMerchant, async (req, res) => {
   const { categoryId, id } = req.params;
 
   try {
@@ -125,7 +124,38 @@ router.delete("/:categoryId/:id",isMerchant, async (req, res) => {
         .json({ msg: "Menu item not found in this category" });
     }
 
-    res.json({ msg: "Menu item deleted", data: {success: true} });
+    res.json({ msg: "Menu item deleted", data: { success: true } });
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error });
+  }
+});
+
+router.get("/search", async (req, res) => {
+  const { name, page = 1, limit = 10 } = req.query;
+  const filter = {};
+
+  if (name) {
+    filter.name = { $regex: name, $options: "i" };
+  }
+
+  try {
+    const skip = (page - 1) * limit;
+
+    const menuItems = await Menu.find(filter).skip(skip).limit(parseInt(limit));
+
+    const totalMenuItems = await Menu.countDocuments(filter);
+
+    const totalPages = Math.ceil(totalMenuItems / limit);
+
+    res.json({
+      data: menuItems,
+      pageInfo: {
+        currentPage: page,
+        pageSize: limit,
+        count: totalMenuItems,
+        totalPages: totalPages,
+      },
+    });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
