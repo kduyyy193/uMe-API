@@ -5,7 +5,7 @@ const Order = require("../models/Order");
 const Menu = require("../models/Menu");
 const Table = require("../models/Table");
 const router = express.Router();
-const db = require("../firebase");
+// const db = require("../firebase");
 const STATUS = require("../constants/status");
 const moment = require("moment");
 
@@ -57,7 +57,7 @@ router.post("/", async (req, res) => {
 
     const order = new Order({
       tableId,
-      uniqueId: isTakeaway ? uuidv4() : undefined,
+      uniqueId: uuidv4(),
       items,
       totalAmount,
       isTakeaway,
@@ -67,7 +67,7 @@ router.post("/", async (req, res) => {
     await order.save();
 
     table.status = "occupied";
-    console.log(table.status)
+    console.log(order)
     await table.save();
 
     const orderData = {
@@ -84,7 +84,7 @@ router.post("/", async (req, res) => {
       createdAt: new Date().toISOString(),
     };
 
-    await db.ref(`orders/${order._id}`).set(orderData);
+    // await db.ref(`orders/${order._id}`).set(orderData);
 
     const io = req.io;
     if (io) {
@@ -120,32 +120,53 @@ router.put("/update-status", async (req, res) => {
       return res.status(404).json({ msg: "Order not found." });
     }
 
-    const itemIndex = order.items.findIndex(
-      (item) => item._id.toString() === itemId
-    );
-    if (itemIndex === -1) {
+    // Lọc các item có itemId trong order (có thể có nhiều item với trạng thái khác nhau)
+    const itemsToUpdate = order.items.filter((item) => item._id.toString() === itemId);
+
+    if (itemsToUpdate.length === 0) {
       return res.status(404).json({ msg: "Item not found in order." });
     }
 
-    order.items[itemIndex].status = newStatus;
+    // Kiểm tra trạng thái hiện tại của item nếu là 'INPROGRESS'
+    if (newStatus === 'INPROGRESS') {
+      // Lọc các item có trạng thái 'NEW' để cập nhật
+      const validItems = itemsToUpdate.filter(item => item.status === 'NEW');
+
+      if (validItems.length === 0) {
+        return res.status(400).json({
+          msg: "Item must be in 'NEW' status to be updated to 'INPROGRESS'.",
+        });
+      }
+
+      // Cập nhật tất cả các item có trạng thái 'NEW' thành 'INPROGRESS'
+      validItems.forEach(item => {
+        item.status = 'INPROGRESS';
+      });
+    } else {
+      // Cập nhật trạng thái bình thường cho tất cả các item được chọn
+      itemsToUpdate.forEach(item => {
+        item.status = newStatus;
+      });
+    }
 
     await order.save();
 
+    // Gửi thông báo thông qua WebSocket nếu có thay đổi trạng thái
     const io = req.io;
     if (newStatus === 'DONE') {
       if (io) {
-        io.emit("itemCompleted", { message: `${order.items[itemIndex]?.name}` });
+        io.emit("itemCompleted", { message: `${itemsToUpdate[0]?.name}` });
       }
     }
     if (newStatus === 'INPROGRESS') {
       if (io) {
-        io.emit("itemInProgress", { message: `${order.items[itemIndex]?.name}` });
+        io.emit("itemInProgress", { message: `${itemsToUpdate[0]?.name}` });
       }
     }
 
     res.status(200).json({
       msg: "Item status updated successfully.",
-      data: order.items[itemIndex],
+      data: itemsToUpdate, // Trả về tất cả các item đã được cập nhật
     });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
@@ -176,7 +197,7 @@ router.delete("/delete-done-items", async (req, res) => {
       order.items.splice(itemIndex, 1);
       await order.save();
 
-      res.status(200).json({ msg: "Item deleted successfully.", data: { success: true} });
+      res.status(200).json({ msg: "Item deleted successfully.", data: { success: true } });
     } else {
       res.status(400).json({ msg: "Item is not in 'DONE' status." });
     }
@@ -224,7 +245,7 @@ router.get("/order-items", async (req, res) => {
       }
     }
 
-    res.status(200).json({ data: {inprogress, new: newItems, done} });
+    res.status(200).json({ data: { inprogress, new: newItems, done } });
   } catch (error) {
     res.status(500).json({ msg: "Server error", error });
   }
@@ -359,7 +380,7 @@ router.put("/update-status/:orderId", async (req, res) => {
       createdAt: new Date().toISOString(),
     };
 
-    await db.ref(`orders/${order._id}`).set(orderData);
+    // await db.ref(`orders/${order._id}`).set(orderData);
 
     res.json({ msg: "Order item status updated successfully.", order });
   } catch (error) {
@@ -397,7 +418,7 @@ router.put("/update-items/:orderId", async (req, res) => {
         name: menuItem.name,
         quantity: item.quantity,
         price: menuItem.price,
-        status: "NEW",
+        status: item.status || 'NEW',
         note: item.note || "",
       });
     }
@@ -405,6 +426,11 @@ router.put("/update-items/:orderId", async (req, res) => {
     order.totalAmount = totalAmount;
 
     await order.save();
+
+    const io = req.io;
+    if (io) {
+      io.emit("newOrder", { message: "New Order" });
+    }
 
     res.status(200).json({
       msg: "Order items updated successfully.",
@@ -466,14 +492,14 @@ router.get("/checkout", async (req, res) => {
   }
 });
 
-router.get("/check-firebase", (req, res) => {
-  db.ref(".info/connected").once("value", (snapshot) => {
-    if (snapshot.val() === true) {
-      res.status(200).json({ msg: "Firebase connected successfully." });
-    } else {
-      res.status(500).json({ msg: "Firebase not connected." });
-    }
-  });
-});
+// router.get("/check-firebase", (req, res) => {
+//   db.ref(".info/connected").once("value", (snapshot) => {
+//     if (snapshot.val() === true) {
+//       res.status(200).json({ msg: "Firebase connected successfully." });
+//     } else {
+//       res.status(500).json({ msg: "Firebase not connected." });
+//     }
+//   });
+// });
 
 module.exports = router;

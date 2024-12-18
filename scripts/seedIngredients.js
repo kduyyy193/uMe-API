@@ -29,6 +29,25 @@ const seedIngredients = async () => {
       { name: "Bơ", quantity: 30, unit: "kg" },
       { name: "Trứng gà", quantity: 200, unit: "quả" },
       { name: "Sữa tươi", quantity: 100, unit: "lít" },
+      { name: "Đường", quantity: 50, unit: "kg" },
+      { name: "Muối", quantity: 20, unit: "kg" },
+      { name: "Dầu ăn", quantity: 30, unit: "lít" },
+      { name: "Gạo", quantity: 200, unit: "kg" },
+      { name: "Thịt bò", quantity: 50, unit: "kg" },
+      { name: "Thịt gà", quantity: 60, unit: "kg" },
+      { name: "Hành tím", quantity: 15, unit: "kg" },
+      { name: "Tỏi", quantity: 10, unit: "kg" },
+      { name: "Ớt", quantity: 5, unit: "kg" },
+      { name: "Sữa tươi", quantity: 20, unit: "lít" },
+      { name: "Tôm sú", quantity: 50, unit: "kg" },
+      { name: "Cá hồi", quantity: 30, unit: "kg" },
+      { name: "Mực ống", quantity: 40, unit: "kg" },
+      { name: "Nghêu", quantity: 20, unit: "kg" },
+      { name: "Cua biển", quantity: 25, unit: "kg" },
+      { name: "Hàu", quantity: 15, unit: "kg" },
+      { name: "Sò điệp", quantity: 10, unit: "kg" },
+      { name: "Bạch tuộc", quantity: 35, unit: "kg" }
+
     ]);
 
     console.log("Nguyên liệu đã được tạo thành công!", ingredients);
